@@ -144,7 +144,7 @@ repositories {
 
 ext {
   log4JVersion = "2.25.2"
-  logbackVersion = "1.5.20"
+  logbackVersion = "1.5.21"
 }
 
 ext['snakeyaml.version'] = '2.2'

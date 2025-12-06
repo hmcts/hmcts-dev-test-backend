@@ -1,21 +1,26 @@
 package uk.gov.hmcts.reform.dev.controllers;
 
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import uk.gov.hmcts.reform.dev.models.ExampleCase;
 
-import java.time.LocalDateTime;
+import uk.gov.hmcts.reform.dev.models.Case;
+import uk.gov.hmcts.reform.dev.services.CaseService;
 
-import static org.springframework.http.ResponseEntity.ok;
+import java.util.List;
 
 @RestController
+@RequestMapping("/api")
 public class CaseController {
 
-    @GetMapping(value = "/get-example-case", produces = "application/json")
-    public ResponseEntity<ExampleCase> getExampleCase() {
-        return ok(new ExampleCase(1, "ABC12345", "Case Title",
-                                  "Case Description", "Case Status", LocalDateTime.now()
-        ));
+    private final CaseService caseService;
+
+    public CaseController(CaseService caseService) {
+        this.caseService = caseService;
+    }
+
+    @GetMapping("/cases")
+    public List<Case> getAllCases() {
+        return caseService.getAllCases();
     }
 }

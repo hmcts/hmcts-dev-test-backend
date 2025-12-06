@@ -76,7 +76,26 @@ tasks.withType(Test) {
 }
 
 test {
-  failFast = true
+    jvmArgs '-XX:+EnableDynamicAgentLoading'
+    
+    testLogging {
+        events "passed", "skipped", "failed", "standardOut", "standardError"
+        exceptionFormat "full"
+        showExceptions true
+        showCauses true
+        showStackTraces true
+        showStandardStreams = true
+        
+        afterSuite { desc, result ->
+            if (!desc.parent) {
+                println "\nTest result: ${result.resultType}"
+                println "Test summary: ${result.testCount} tests, " +
+                       "${result.successfulTestCount} succeeded, " +
+                       "${result.failedTestCount} failed, " +
+                       "${result.skippedTestCount} skipped"
+            }
+        }
+    }
 }
 
 task functional(type: Test) {
@@ -150,12 +169,15 @@ ext {
 ext['snakeyaml.version'] = '2.2'
 
 dependencies {
+  implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa'
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web'
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-actuator'
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-aop'
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-json'
+  implementation group: 'org.springframework.boot', name: 'spring-boot-starter-validation'
   implementation group: 'org.springdoc', name: 'springdoc-openapi-starter-webmvc-ui', version: '2.8.14'
-
+  implementation group: 'com.mysql', name: 'mysql-connector-j', version: '8.3.0'
+  implementation group: 'org.hibernate.validator', name: 'hibernate-validator'
   implementation group: 'com.github.hmcts.java-logging', name: 'logging', version: '6.1.9'
 
   implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: log4JVersion

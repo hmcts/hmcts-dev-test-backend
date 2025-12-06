@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 
 import uk.gov.hmcts.reform.dev.models.Case;
 import uk.gov.hmcts.reform.dev.repository.CaseRepository;
-import uk.gov.hmcts.reform.dev.services.CaseService;
 import org.mockito.Mockito;
 
 import java.util.List;

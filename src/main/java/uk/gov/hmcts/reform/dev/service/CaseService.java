@@ -1,4 +1,4 @@
-package uk.gov.hmcts.reform.dev.services;
+package uk.gov.hmcts.reform.dev.service;
 
 import java.util.List;
 

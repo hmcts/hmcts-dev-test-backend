@@ -89,7 +89,8 @@ SELECT * FROM cases;
 
 Use the following command to start the application:
 
-```./gradlew run
+```
+./gradlew run
 ```
 
 The application will start on `http://localhost:8080`

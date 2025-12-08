@@ -8,6 +8,7 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+// TO-DO: This will be used for future API layer separation
 @Getter
 @Setter
 @NoArgsConstructor

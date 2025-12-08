@@ -24,4 +24,16 @@ public class CaseService {
             throw new CaseServiceException("Error fetching cases from database", e);
         }
     }
+
+    public Case createCase(Case caseRequest) {
+        if (caseRepository.existsByCaseNumber(caseRequest.getCaseNumber())) {
+            throw new CaseServiceException("Case with case number '" + caseRequest.getCaseNumber() + "' already exists",
+                    null);
+        }
+        try {
+            return caseRepository.save(caseRequest);
+        } catch (Exception e) {
+            throw new CaseServiceException("Error creating new case", e);
+        }
+    }
 }

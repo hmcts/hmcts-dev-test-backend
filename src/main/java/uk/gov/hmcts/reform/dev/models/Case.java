@@ -15,12 +15,15 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Setter;
 import lombok.Getter;
+import lombok.AccessLevel;
 
 @Getter
 @Setter
 @Entity
 @Table(name = "cases")
 public class Case {
+    @Setter(AccessLevel.NONE)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @Id
     @GeneratedValue
     @Column(name = "id", columnDefinition = "BINARY(16)", nullable = false, updatable = false)
@@ -38,6 +41,8 @@ public class Case {
     @Column(name = "status", nullable = false, length = 100)
     private String status;
 
+    @Setter(AccessLevel.NONE)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @CreationTimestamp
     @Column(name = "created_date", nullable = false, length = 100)
     private LocalDateTime createdDate;

@@ -6,5 +6,6 @@ import java.util.UUID;
 
 public interface CaseRepository extends ListCrudRepository<Case, UUID> {
 
-  
+    boolean existsByCaseNumber(String caseNumber);
+
 }

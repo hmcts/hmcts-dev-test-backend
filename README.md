@@ -98,3 +98,9 @@ The application will start on `http://localhost:8080`
 ## 🧪 Testing
 
 In order to run the unit tests, use the `./gradlew test` command. This will execute all tests in the project.
+
+## Improvements on existing code (no new major features or API endpoints)
+- **Add API Documentation**: Integrate Swagger for interactive API documentation
+- **Improve Test Coverage**: Add integration tests and increase unit test coverage
+- **Create an Enum for Status**: Replace String status field with an Enum to enforce valid values (NEW, IN_PROGRESS, CLOSED, PENDING) and prevent invalid data
+- **Use the DTO for Layering**: Separate API layer from database by using CaseDTO in the controller instead of the Case entity directly

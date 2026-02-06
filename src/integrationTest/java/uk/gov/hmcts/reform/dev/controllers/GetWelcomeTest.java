@@ -10,10 +10,16 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.boot.test.mock.mockito.MockBean; // ADDING THIS IMPORT
+import uk.gov.hmcts.reform.dev.repository.TaskRepository; // ADDING THIS IMPORT
+
 
 @WebMvcTest
+
 class GetWelcomeTest {
 
+    @MockBean 
+    private TaskRepository taskRepository;
     @Autowired
     private transient MockMvc mockMvc;
 

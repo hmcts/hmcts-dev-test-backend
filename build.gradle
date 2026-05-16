@@ -6,7 +6,7 @@ plugins {
   id 'com.github.ben-manes.versions' version '0.54.0'
   id 'org.sonarqube' version '7.3.0.8198'
   // Applies analysis tools including checkstyle and OWASP Dependency checker.
-  id 'uk.gov.hmcts.java' version '0.12.68'
+  id 'uk.gov.hmcts.java' version '0.12.70'
 }
 
 group = 'uk.gov.hmcts.reform'

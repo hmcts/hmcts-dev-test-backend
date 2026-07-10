@@ -173,6 +173,7 @@ dependencies {
   annotationProcessor 'org.projectlombok:lombok'
 
   testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
+  testImplementation 'org.springframework.boot:spring-boot-data-jpa-test'
 
   testImplementation(platform('org.junit:junit-bom:6.1.1'))
   testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'

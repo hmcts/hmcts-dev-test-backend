@@ -1,5 +1,7 @@
 package uk.gov.hmcts.reform.dev.controllers;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/tasks")
+@Tag(name = "Tasks", description = "Create, view, update and delete caseworker tasks")
 public class TaskController {
 
     private final TaskService taskService;
@@ -32,6 +35,7 @@ public class TaskController {
     }
 
     @PostMapping
+    @Operation(summary = "Create a new task")
     public ResponseEntity<TaskResponse> createTask(@Valid @RequestBody CreateTaskRequest request,
                                                    UriComponentsBuilder uriBuilder) {
         TaskResponse created = taskService.createTask(request);
@@ -42,16 +46,19 @@ public class TaskController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Retrieve a task by its id")
     public TaskResponse getTask(@PathVariable Long id) {
         return taskService.getTaskById(id);
     }
 
     @GetMapping
+    @Operation(summary = "Retrieve all tasks")
     public List<TaskResponse> getAllTasks() {
         return taskService.getAllTasks();
     }
 
     @PatchMapping("/{id}/status")
+    @Operation(summary = "Update the status of a task")
     public TaskResponse updateStatus(@PathVariable Long id,
                                      @Valid @RequestBody UpdateTaskStatusRequest request) {
         return taskService.updateStatus(id, request.getStatus());
@@ -59,6 +66,7 @@ public class TaskController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete a task")
     public void deleteTask(@PathVariable Long id) {
         taskService.deleteTask(id);
     }

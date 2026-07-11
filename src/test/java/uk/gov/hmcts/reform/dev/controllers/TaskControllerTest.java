@@ -11,6 +11,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import uk.gov.hmcts.reform.dev.dto.CreateTaskRequest;
 import uk.gov.hmcts.reform.dev.dto.TaskResponse;
+import uk.gov.hmcts.reform.dev.exceptions.TaskNotFoundException;
 import uk.gov.hmcts.reform.dev.models.TaskStatus;
 import uk.gov.hmcts.reform.dev.services.TaskService;
 
@@ -19,6 +20,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -72,7 +74,10 @@ class TaskControllerTest {
         mockMvc.perform(post("/api/tasks")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.message").value("Validation failed"))
+            .andExpect(jsonPath("$.fieldErrors.title").exists());
 
         verify(taskService, org.mockito.Mockito.never()).createTask(any());
     }
@@ -127,5 +132,47 @@ class TaskControllerTest {
             .andExpect(status().isNoContent());
 
         verify(taskService).deleteTask(1L);
+    }
+
+    @Test
+    void getByIdReturns404WhenTaskNotFound() throws Exception {
+        when(taskService.getTaskById(99L)).thenThrow(new TaskNotFoundException(99L));
+
+        mockMvc.perform(get("/api/tasks/99"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.status").value(404))
+            .andExpect(jsonPath("$.message").value("Task not found with id: 99"));
+    }
+
+    @Test
+    void updateStatusReturns404WhenTaskNotFound() throws Exception {
+        when(taskService.updateStatus(eq(99L), any())).thenThrow(new TaskNotFoundException(99L));
+
+        mockMvc.perform(patch("/api/tasks/99/status")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"status\":\"COMPLETED\"}"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteReturns404WhenTaskNotFound() throws Exception {
+        doThrow(new TaskNotFoundException(99L)).when(taskService).deleteTask(99L);
+
+        mockMvc.perform(delete("/api/tasks/99"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void createWithInvalidStatusValueReturns400() throws Exception {
+        String body = "{\"title\":\"Review case\",\"status\":\"NOT_A_STATUS\","
+            + "\"dueDateTime\":\"2026-07-10T09:00:00\"}";
+
+        mockMvc.perform(post("/api/tasks")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Malformed or invalid request body"));
+
+        verify(taskService, org.mockito.Mockito.never()).createTask(any());
     }
 }

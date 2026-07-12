@@ -7,6 +7,37 @@ It supports creating a task, retrieving a single task or all tasks, updating a t
 status, and deleting a task. Data is persisted in a database, inputs are validated, and
 errors are returned in a consistent structure.
 
+## How to run
+
+> **Note:** The `cd` paths below are examples. Change them to wherever you cloned
+> the two repositories on your machine.
+
+This solution has two parts that run together: the **backend** (this API) and the
+**frontend** (web UI). Run each in its own terminal, and start the backend first.
+
+### 1. Backend (start first) — http://localhost:4000
+
+```bash
+cd /Users/user/HMCTSTest/hmcts-dev-test-backend
+./gradlew bootRun
+```
+
+### 2. Frontend — http://localhost:3100
+
+```bash
+cd /Users/user/HMCTSTest/hmcts-dev-test-frontend
+yarn install   # first time only
+yarn build     # first time, or after changes
+yarn start
+```
+
+Then open **http://localhost:3100** in your browser (it redirects to the task list).
+
+- API docs (Swagger UI): http://localhost:4000/swagger-ui.html
+- Start the backend before the frontend, because the frontend calls the backend API.
+- If a port is already in use, free it with `lsof -ti tcp:4000 | xargs kill -9`
+  (or `tcp:3100` for the frontend).
+
 ## Tech stack
 
 - Java 21

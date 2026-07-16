@@ -48,35 +48,77 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Image tags (registry host from secrets.CONTAINER_REGISTRY, default ghcr.io):
+      #   full SHA     — exact/immutable pin to a commit
+      #   short SHA    — easier to identify/share (same commit, first 7 chars)
+      #   branch-run#  — easy to identify which branch + CI run produced the image
+      #   latest       — moving pointer to the newest master build (pushed on master only)
+      # Branch names are sanitized (e.g. feature/foo → feature-foo) so the tag is Docker-valid.
+      # Image path must be lowercase for GHCR; harmless for most other registries.
       - name: Compute image refs
         id: img
+        env:
+          CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }} 
         run: |
+          registry="${CONTAINER_REGISTRY:-ghcr.io}"
           repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           sha="${{ github.sha }}"
           short_sha="${sha:0:7}"
-          echo "sha_tag=ghcr.io/${repo}:${sha}"             >> $GITHUB_OUTPUT
-          echo "short_sha_tag=ghcr.io/${repo}:${short_sha}" >> $GITHUB_OUTPUT
-          echo "latest_tag=ghcr.io/${repo}:latest"          >> $GITHUB_OUTPUT
+          branch=$(echo "${{ github.head_ref || github.ref_name }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')
+          run_number="${{ github.run_number }}"
+          echo "registry=${registry}"                                     >> $GITHUB_OUTPUT
+          echo "sha_tag=${registry}/${repo}:${sha}"                       >> $GITHUB_OUTPUT
+          echo "short_sha_tag=${registry}/${repo}:${short_sha}"           >> $GITHUB_OUTPUT
+          echo "branch_tag=${registry}/${repo}:${branch}-${run_number}"   >> $GITHUB_OUTPUT
+          echo "latest_tag=${registry}/${repo}:latest"                    >> $GITHUB_OUTPUT
 
-      - name: Log in to GHCR
+      # Only on master — feature branches build the image but do not publish.
+      # Registry host comes from secrets.CONTAINER_REGISTRY (default ghcr.io).
+      # For a non-GHCR registry, also set username/password secrets and swap them below.
+      - name: Log in to container registry
         if: github.ref == 'refs/heads/master'
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ steps.img.outputs.registry }}
+          username: ${{ secrets.CONTAINER_REGISTRY_USERNAME || github.actor }}
+          password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
 
+      # Build on every branch so the image can be scanned / verified even when we don't push.
       - name: Build image
         run: |
           docker build \
             -t ${{ steps.img.outputs.sha_tag }} \
             -t ${{ steps.img.outputs.short_sha_tag }} \
+            -t ${{ steps.img.outputs.branch_tag }} \
             .
 
+      # Scan every build — CRITICAL findings block the pipeline, HIGH are warnings only.
+      # ignore-unfixed skips CVEs that have no fix available yet (no point blocking on noise).
+      - name: Scan — CRITICAL (blocking)
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: ${{ steps.img.outputs.sha_tag }}
+          format: table
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Scan — HIGH (non-blocking)
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: ${{ steps.img.outputs.sha_tag }}
+          format: table
+          severity: HIGH
+          exit-code: '0'
+          ignore-unfixed: true
+
+      # Only on master — publish full SHA, short SHA, branch-run_number, and retag latest.
+      # Pushes to the registry configured above (secret or default ghcr.io).
       - name: Push image
         if: github.ref == 'refs/heads/master'
         run: |
           docker tag ${{ steps.img.outputs.sha_tag }} ${{ steps.img.outputs.latest_tag }}
           docker push ${{ steps.img.outputs.sha_tag }}
           docker push ${{ steps.img.outputs.short_sha_tag }}
+          docker push ${{ steps.img.outputs.branch_tag }}
           docker push ${{ steps.img.outputs.latest_tag }}

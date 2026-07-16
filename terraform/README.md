@@ -51,18 +51,18 @@ environments/
 Example `prod.tfvars`:
 
 ```hcl
-service_name     = "dev-test-backend"
-environment      = "production"
-location         = "uksouth"
-key_vault_name   = "kv-devtest-prod-<unique>"
-db_sku           = "GP_Standard_D2s_v3"
-db_name          = "devtest"
+service_name      = "dev-test-backend"
+environment       = "production"
+location          = "uksouth"
+key_vault_name    = "kv-devtest-prod-<unique>"
+db_sku            = "GP_Standard_D2s_v3"
+db_name           = "devtest"
 db_admin_username = "psqladmin"
-min_replicas     = 1
-max_replicas     = 5
-container_cpu    = 1.0
-container_memory = "2Gi"
-server_port      = 4000
+min_replicas      = 1
+max_replicas      = 5
+container_cpu     = 1.0
+container_memory  = "2Gi"
+server_port       = 4000
 ```
 
 Sensitive values (`db_admin_password`, `container_image`) are never committed to tfvars — they are injected at pipeline runtime via `TF_VAR_*` environment variables sourced from GitHub Actions secrets.
@@ -83,7 +83,7 @@ locals {
 }
 ```
 
-Individual resources can extend this with additional resource-level tags where needed, for example:
+Individual resources can extend this with additional resource-level tags where needed:
 
 ```hcl
 resource "azurerm_postgresql_flexible_server" "main" {
@@ -139,9 +139,9 @@ The state storage account should have soft delete and versioning enabled so acci
 
 ---
 
-## CI/CD workflow
+## CI/CD workflow (current)
 
-The pipeline (`.github/workflows/main.yml`) is structured so that **infrastructure changes are always applied before a new container image is deployed**. If `terraform/` files change in the same commit as application code, Terraform runs first and the deploy job waits for it to complete successfully.
+The pipeline (`.github/workflows/main.yml`) detects changes under `terraform/` and runs the Terraform job only when needed. Critically, **infrastructure changes are always applied before a new container image is deployed** — the deploy job has a `needs` dependency on the terraform job and will not start until it completes successfully.
 
 ```
 push / PR
@@ -152,28 +152,78 @@ push / PR
   └── terraform (only if terraform/** changed) ────────────┘
 ```
 
-### Branch commits
+Currently, the terraform job runs:
 
-On every push to any branch where `terraform/` files have changed, the pipeline runs:
+- `terraform fmt -check` — fails fast on formatting issues
+- `terraform validate` — validates syntax and configuration without requiring Azure credentials
 
-```yaml
-- terraform fmt -check    # fails fast on formatting issues
-- terraform validate      # validates syntax and config without cloud credentials
-- terraform plan          # previews what would change (requires Azure credentials)
+This is sufficient to catch common errors in CI without needing cloud authentication configured in the pipeline.
+
+---
+
+## Real world Terraform (given more time)
+
+The following describes what a production-grade Terraform CI/CD setup would look like. The primitives are in place — the pipeline already gates deploy on terraform, and the `_terraform.yml` workflow is the right place to extend.
+
+### Pipeline flow
+
+```
+Feature branch push (terraform/** changed)
+  └── fmt -check
+  └── validate
+  └── plan ─────────────────────────── output printed to job log
+
+                    │
+                    ▼
+
+Pull request → master (terraform/** changed)
+  └── fmt -check
+  └── validate
+  └── plan ─────────────────────────── plan output posted as PR comment
+                                        reviewers see exact infra diff before approving
+                    │
+                    │  PR approved & merged
+                    ▼
+
+Merge to master (terraform/** changed)
+  └── fmt -check
+  └── validate
+  └── plan (final pre-apply check)
+  └── apply ────────────────────────── infrastructure updated
+                    │
+                    │  apply succeeded
+                    ▼
+              deploy (new image rolled out)
 ```
 
-The plan output is printed to the job log so developers can see the impact of their changes before opening a PR.
+### Branch commits
+
+On every push to a feature branch where `terraform/` files have changed, `terraform plan` would run and print the proposed changes to the job log. This gives developers early feedback on the infrastructure impact of their changes before opening a PR.
 
 ### Pull requests
 
-When a PR is raised against `master`, the plan runs again against the target state and the output is **posted as a comment on the PR** so reviewers can see exactly what infrastructure will change before approving. This is typically implemented with a step like:
+When a PR targeting `master` is opened or updated, the plan runs against the target state and the output is **posted as a comment on the PR** so reviewers can see exactly what infrastructure would change before approving. No changes are applied at this stage — plan is read-only.
 
 ```yaml
+- name: Terraform plan
+  id: plan
+  working-directory: terraform
+  env:
+    TF_VAR_db_admin_password: ${{ secrets.DB_ADMIN_PASSWORD }}
+    TF_VAR_container_image:   ${{ needs.docker.outputs.sha_tag }}
+  run: |
+    terraform plan \
+      -var-file=environments/prod.tfvars \
+      -input=false \
+      -no-color 2>&1 | tee plan.txt
+
 - name: Post plan to PR
   uses: actions/github-script@v7
   with:
     script: |
-      const output = `#### Terraform Plan\n\`\`\`\n${{ steps.plan.outputs.stdout }}\n\`\`\``;
+      const fs = require('fs');
+      const plan = fs.readFileSync('terraform/plan.txt', 'utf8');
+      const output = `#### Terraform Plan 📋\n\`\`\`\n${plan}\n\`\`\``;
       github.rest.issues.createComment({
         issue_number: context.issue.number,
         owner: context.repo.owner,
@@ -182,11 +232,9 @@ When a PR is raised against `master`, the plan runs again against the target sta
       });
 ```
 
-No infrastructure changes are applied at this stage — the plan is read-only and safe to run on every commit.
-
 ### Merge to master (apply)
 
-Once the PR is reviewed and approved, merging to `master` triggers `terraform apply` automatically:
+Once the PR is approved and merged, `terraform apply` runs automatically against master:
 
 ```yaml
 - name: Terraform apply
@@ -201,27 +249,19 @@ Once the PR is reviewed and approved, merging to `master` triggers `terraform ap
       -input=false
 ```
 
-The deploy job (`_deploy.yml`) has a `needs` dependency on the terraform job and only proceeds once apply has completed successfully — ensuring the infrastructure is in the desired state before the new container image is rolled out.
+The deploy job waits for apply to complete successfully before rolling out the new container image — ensuring infrastructure is always in the desired state before the application catches up to it.
 
----
+### Terraform modules
 
-## Terraform modules (real-world consideration)
-
-This configuration defines resources directly in the root module, which is appropriate for a single service. In a real organisation with multiple services, the repeating pattern of:
-
-- User-assigned identity
-- Key Vault + access policies
-- Container Apps environment + Container App
-
-would be extracted into **shared Terraform modules** (e.g. in a `terraform-modules` repository). Each service would then consume the module with a few lines rather than duplicating the full resource definitions:
+This configuration defines resources directly in the root module, appropriate for a single service. In a real organisation with multiple services, the repeating pattern of managed identity + Key Vault + Container App would be extracted into **shared Terraform modules** in a dedicated repository. Each service would then consume the module rather than duplicating resource definitions:
 
 ```hcl
 module "app" {
-  source         = "git::https://github.com/org/terraform-modules//container-app?ref=v1.2.0"
-  service_name   = var.service_name
-  environment    = var.environment
+  source          = "git::https://github.com/org/terraform-modules//container-app?ref=v1.2.0"
+  service_name    = var.service_name
+  environment     = var.environment
   container_image = var.container_image
-  secrets        = { db_password = azurerm_key_vault_secret.db_password.id }
+  secrets         = { db_password = azurerm_key_vault_secret.db_password.id }
 }
 ```
 

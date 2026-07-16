@@ -106,10 +106,12 @@ docker compose down -v
 
 | Method | Path | Description |
 |---|---|---|
+| `GET` | `/` | Root — welcome / liveness check |
+| `GET` | `/get-example-case` | Returns an example case |
 | `GET` | `/health` | Actuator health — includes database connectivity |
 | `GET` | `/info` | Actuator info |
-| `GET` | `/cases` | List cases |
-| `GET` | `/swagger-ui.html` | OpenAPI UI |
+| `GET` | `/swagger-ui/index.html` | OpenAPI UI |
+| `GET` | `/v3/api-docs` | Raw OpenAPI spec |
 
 ---
 

@@ -1,0 +1,28 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      image_ref:
+        description: Fully-qualified image tag to deploy
+        required: true
+        type: string
+      environment:
+        description: Target environment (e.g. production, staging)
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # TODO: replace with real deployment steps, e.g.:
+      #   - helm upgrade --install ...
+      #   - kubectl set image ...
+      #   - az container create ...
+      - name: Deploy
+        run: |
+          echo "Deploying ${{ inputs.image_ref }} to ${{ inputs.environment }}"

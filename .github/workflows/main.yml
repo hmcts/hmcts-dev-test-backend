@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [master]
+
+jobs:
+  # Detect which paths changed so downstream jobs can gate on it.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      terraform: ${{ steps.filter.outputs.terraform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            terraform:
+              - 'terraform/**'
+
+  build:
+    uses: ./.github/workflows/_build.yml
+    secrets: inherit
+
+  docker:
+    needs: build
+    uses: ./.github/workflows/_docker.yml
+    secrets: inherit
+
+  # Only runs when files under terraform/ change.
+  # Plan on every such run; apply only on master (after the image is built).
+  terraform:
+    needs: [changes, docker]
+    if: needs.changes.outputs.terraform == 'true'
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      environment: production
+      apply: ${{ github.ref == 'refs/heads/master' }}
+      container_image: ${{ needs.docker.outputs.sha_tag }}
+    secrets: inherit
+
+  # Runs on master only, after the image passes the security scan.
+  # If terraform changed, waits for it to succeed before deploying.
+  # If terraform was skipped (no tf changes), deploy proceeds anyway.
+  deploy:
+    needs: [docker, terraform]
+    if: |
+      github.ref == 'refs/heads/master' &&
+      needs.docker.result == 'success' &&
+      (needs.terraform.result == 'success' || needs.terraform.result == 'skipped')
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      image_ref: ${{ needs.docker.outputs.sha_tag }}
+      environment: production
+    secrets: inherit

@@ -1,64 +1,35 @@
-name: CI
+name: Docker build, scan and push
 
 on:
-  push:
-    branches: ['**']
-  pull_request:
-    branches: [master]
+  workflow_call:
+    outputs:
+      sha_tag:
+        description: Full SHA image tag — used by the deploy job
+        value: ${{ jobs.docker.outputs.sha_tag }}
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: ci
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-        ports:
-          - 5432:5432
-    env:
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_NAME: ci
-      DB_USER_NAME: ci
-      DB_PASSWORD: ci
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
-      - name: Build, test & static analysis
-        run: ./gradlew check
-
   docker:
     runs-on: ubuntu-latest
-    needs: build
     permissions:
       contents: read
       packages: write
+      security-events: write
+    outputs:
+      sha_tag: ${{ steps.img.outputs.sha_tag }}
     steps:
       - uses: actions/checkout@v4
 
-      # Image tags (registry host from secrets.CONTAINER_REGISTRY, default ghcr.io):
+      # Image tags:
       #   full SHA     — exact/immutable pin to a commit
       #   short SHA    — easier to identify/share (same commit, first 7 chars)
       #   branch-run#  — easy to identify which branch + CI run produced the image
       #   latest       — moving pointer to the newest master build (pushed on master only)
       # Branch names are sanitized (e.g. feature/foo → feature-foo) so the tag is Docker-valid.
-      # Image path must be lowercase for GHCR; harmless for most other registries.
+      # Image path is lowercased — required by GHCR.
       - name: Compute image refs
         id: img
         env:
-          CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }} 
+          CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
         run: |
           registry="${CONTAINER_REGISTRY:-ghcr.io}"
           repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
@@ -72,18 +43,6 @@ jobs:
           echo "branch_tag=${registry}/${repo}:${branch}-${run_number}"   >> $GITHUB_OUTPUT
           echo "latest_tag=${registry}/${repo}:latest"                    >> $GITHUB_OUTPUT
 
-      # Only on master — feature branches build the image but do not publish.
-      # Registry host comes from secrets.CONTAINER_REGISTRY (default ghcr.io).
-      # For a non-GHCR registry, also set username/password secrets and swap them below.
-      - name: Log in to container registry
-        if: github.ref == 'refs/heads/master'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ steps.img.outputs.registry }}
-          username: ${{ secrets.CONTAINER_REGISTRY_USERNAME || github.actor }}
-          password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
-
-      # Build on every branch so the image can be scanned / verified even when we don't push.
       - name: Build image
         run: |
           docker build \
@@ -92,28 +51,55 @@ jobs:
             -t ${{ steps.img.outputs.branch_tag }} \
             .
 
-      # Scan every build — CRITICAL findings block the pipeline, HIGH are warnings only.
-      # ignore-unfixed skips CVEs that have no fix available yet (no point blocking on noise).
+      # ---- Security scan ----
+      # Scan runs against the locally built image before any push.
+      # CRITICAL findings block the job — the image never reaches the registry.
       - name: Scan — CRITICAL (blocking)
         uses: aquasecurity/trivy-action@0.29.0
         with:
           image-ref: ${{ steps.img.outputs.sha_tag }}
-          format: table
+          format: sarif
+          output: trivy-critical.sarif
           severity: CRITICAL
           exit-code: '1'
           ignore-unfixed: true
 
+      - name: Upload CRITICAL findings to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-critical.sarif
+          category: trivy-critical
+
+      # HIGH — continue-on-error marks the step yellow (visible warning) rather than silently green.
       - name: Scan — HIGH (non-blocking)
+        continue-on-error: true
         uses: aquasecurity/trivy-action@0.29.0
         with:
           image-ref: ${{ steps.img.outputs.sha_tag }}
-          format: table
+          format: sarif
+          output: trivy-high.sarif
           severity: HIGH
-          exit-code: '0'
+          exit-code: '1'
           ignore-unfixed: true
 
-      # Only on master — publish full SHA, short SHA, branch-run_number, and retag latest.
-      # Pushes to the registry configured above (secret or default ghcr.io).
+      - name: Upload HIGH findings to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-high.sarif
+          category: trivy-high
+
+      # ---- Push ----
+      # Only reached if the CRITICAL scan above passed.
+      - name: Log in to container registry
+        if: github.ref == 'refs/heads/master'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.img.outputs.registry }}
+          username: ${{ secrets.CONTAINER_REGISTRY_USERNAME || github.actor }}
+          password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
+
       - name: Push image
         if: github.ref == 'refs/heads/master'
         run: |

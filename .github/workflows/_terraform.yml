@@ -1,0 +1,23 @@
+name: Terraform checks
+
+on:
+  workflow_call:
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+
+      # Check all .tf files across the repo are formatted correctly.
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      # Validate the root module in terraform/.
+      # -backend=false skips backend initialisation so no cloud credentials are needed in CI.
+      - name: Terraform validate
+        working-directory: terraform
+        run: |
+          terraform init -backend=false
+          terraform validate

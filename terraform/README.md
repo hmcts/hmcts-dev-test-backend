@@ -66,6 +66,35 @@ Per-environment values live under `environments/` (not in `locals.tf`):
 
 Secrets (`db_admin_password`, `container_image`) are passed at apply time — do not commit them in tfvars.
 
+### Sample GitHub Actions step (password from secrets)
+
+Store the password as a repository or environment secret named `DB_ADMIN_PASSWORD`, then pass it into Terraform via `TF_VAR_*` or `-var`:
+
+```yaml
+- name: Terraform plan
+  working-directory: terraform
+  env:
+    # Maps to var.db_admin_password (sensitive — never echo or commit)
+    TF_VAR_db_admin_password: ${{ secrets.DB_ADMIN_PASSWORD }}
+    TF_VAR_container_image: ${{ inputs.image_ref }}
+  run: |
+    terraform plan \
+      -var-file=environments/prod.tfvars \
+      -input=false
+```
+
+Equivalent using `-var` instead of `TF_VAR_*`:
+
+```yaml
+- name: Terraform apply
+  working-directory: terraform
+  run: |
+    terraform apply -auto-approve \
+      -var-file=environments/prod.tfvars \
+      -var="container_image=${{ inputs.image_ref }}" \
+      -var="db_admin_password=${{ secrets.DB_ADMIN_PASSWORD }}"
+```
+
 ## Running locally
 
 ```bash
@@ -84,7 +113,6 @@ terraform validate
 terraform plan \
   -var-file=environments/prod.tfvars \
   -var="container_image=ghcr.io/org/repo:<sha>" \
-  -var="key_vault_name=kv-devtest-prod-<unique>" \
   -var="db_admin_password=<password>"
 ```
 
@@ -92,6 +120,6 @@ terraform plan \
 
 | Variable | Description |
 |---|---|
-| `container_image` | Fully-qualified image tag (e.g. `ghcr.io/org/repo:<sha>`) |
-| `key_vault_name` | Globally unique Key Vault name (3–24 chars) |
-| `db_admin_password` | PostgreSQL admin password — supply via pipeline secret |
+| `container_image` | Fully-qualified image tag (e.g. `ghcr.io/org/repo:<sha>`) — supply at apply time |
+| `db_admin_password` | PostgreSQL admin password — supply via pipeline secret / `-var` |
+| `key_vault_name` | Globally unique Key Vault name — set in `environments/*.tfvars` |

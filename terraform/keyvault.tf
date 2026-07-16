@@ -39,7 +39,7 @@ resource "azurerm_role_assignment" "app_secrets" {
 # Written by Terraform (deployer) during apply; read at runtime by the Container App via its managed identity.
 # depends_on ensures Key Vault Secrets Officer is assigned before the write.
 resource "azurerm_key_vault_secret" "db_password" {
-  name = local.db_password_secret_name
+  name         = local.db_password_secret_name
   value        = var.db_admin_password # Sensitive input — not in committed tfvars; pass via -var / TF_VAR_* / CI secret at apply time.
   key_vault_id = azurerm_key_vault.main.id
 

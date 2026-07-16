@@ -8,7 +8,7 @@ on:
 
 jobs:
   # Detect which paths changed so downstream jobs can gate on it.
-  changes:
+  tf_changes_present:
     runs-on: ubuntu-latest
     outputs:
       terraform: ${{ steps.filter.outputs.terraform }}
@@ -37,8 +37,8 @@ jobs:
 
   # Only runs when files under terraform/ change (fmt + validate; no plan/apply).
   terraform:
-    needs: changes
-    if: needs.changes.outputs.terraform == 'true'
+    needs: tf_changes_present
+    if: needs.tf_changes_present.outputs.terraform == 'true'
     uses: ./.github/workflows/_terraform.yml
 
   # Runs on master only, after the image passes the security scan.

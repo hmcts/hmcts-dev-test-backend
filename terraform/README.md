@@ -49,26 +49,9 @@ Then uncomment the `backend "azurerm"` block in `main.tf` and fill in the storag
 
 The backend block is currently commented out so `terraform validate` runs locally without Azure credentials.
 
-## CI (plan / apply)
+## CI
 
-The reusable workflow `.github/workflows/_terraform.yml` runs:
-
-1. `fmt` + `validate` (no Azure credentials)
-2. `plan` against remote state (Azure OIDC)
-3. `apply` only when called with `apply: true` (main CI does this on `master`)
-
-Required GitHub Actions secrets:
-
-| Secret | Purpose |
-|---|---|
-| `AZURE_CLIENT_ID` | App registration for OIDC login |
-| `AZURE_TENANT_ID` | Azure AD tenant |
-| `AZURE_SUBSCRIPTION_ID` | Target subscription |
-| `DB_ADMIN_PASSWORD` | Postgres admin + Key Vault secret value |
-| `TF_STATE_STORAGE_ACCOUNT` | Storage account for `azurerm` backend |
-| `TF_STATE_RESOURCE_GROUP` | Optional (defaults to `rg-tfstate`) |
-
-Configure federated credentials on the Azure app registration for this repo (GitHub OIDC). Override backend `storage_account_name` via the secret — do not commit a real account name if you prefer secrets.
+`.github/workflows/_terraform.yml` runs `terraform fmt -check` and `terraform validate` (with `-backend=false`) when `terraform/**` changes. No plan/apply in CI.
 
 ## Environment config (`*.tfvars`)
 
@@ -81,7 +64,7 @@ Per-environment values live under `environments/` (not in `locals.tf`):
 
 `locals.tf` only holds derived values (resource name patterns, tags, `is_production`).
 
-Secrets (`db_admin_password`, `container_image`) and globally unique `key_vault_name` are passed at apply time — do not commit them in tfvars.
+Secrets (`db_admin_password`, `container_image`) are passed at apply time — do not commit them in tfvars.
 
 ## Running locally
 

@@ -167,6 +167,19 @@ Key ordering guarantees:
 | Terraform fmt + validate | ✓ (if tf changed) | ✓ (if tf changed) |
 | Deploy | — | ✓ |
 
+### Security scan results
+
+Trivy scan findings are uploaded to the **GitHub Security tab** after every pipeline run. To view them:
+
+1. Go to the repository on GitHub
+2. Click **Security** → **Code scanning**
+3. Filter by branch using the search bar (e.g. `is:open branch:your-branch-name`)
+4. Findings are split into two categories — `trivy-critical` and `trivy-high` — visible under the **Tool** filter
+
+Each finding shows the CVE ID, affected package, installed version, fixed version (if available), and severity. CRITICAL findings will have blocked the pipeline run — the image will not have been pushed. HIGH findings appear as warnings and do not block the pipeline but should be reviewed and actioned.
+
+> **Note:** The Security tab and code scanning alerts are available on public repositories. For private repositories they require **GitHub Advanced Security**.
+
 ### Real world: GitHub Actions
 
 In this repository the reusable workflows (`_build.yml`, `_docker.yml` etc.) are called internally via `workflow_call`. In a real organisation where the same patterns are used across multiple services, each of these would be extracted into its own **public GitHub Action** in a dedicated repository and referenced like any other action:

@@ -23,3 +23,6 @@ bin/main/application.yaml
 
 applicationinsights-agent-*.jar
 *.log
+
+# Local environment — credentials must not be committed
+.env

@@ -29,6 +29,11 @@ jobs:
     needs: build
     uses: ./.github/workflows/_docker.yml
     secrets: inherit
+    # Caller must grant at least what _docker.yml requests (GHCR push + SARIF upload).
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
 
   # Only runs when files under terraform/ change.
   # Plan on every such run; apply only on master (after the image is built).

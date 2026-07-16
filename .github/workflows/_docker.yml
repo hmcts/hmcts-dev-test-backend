@@ -55,7 +55,7 @@ jobs:
       # Scan runs against the locally built image before any push.
       # CRITICAL findings block the job — the image never reaches the registry.
       - name: Scan — CRITICAL (blocking)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.img.outputs.sha_tag }}
           format: sarif
@@ -74,7 +74,7 @@ jobs:
       # HIGH — continue-on-error marks the step yellow (visible warning) rather than silently green.
       - name: Scan — HIGH (non-blocking)
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.img.outputs.sha_tag }}
           format: sarif

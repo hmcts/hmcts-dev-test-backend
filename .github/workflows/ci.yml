@@ -38,3 +38,45 @@ jobs:
           cache: gradle
       - name: Build, test & static analysis
         run: ./gradlew check
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image refs
+        id: img
+        run: |
+          repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          sha="${{ github.sha }}"
+          short_sha="${sha:0:7}"
+          echo "sha_tag=ghcr.io/${repo}:${sha}"             >> $GITHUB_OUTPUT
+          echo "short_sha_tag=ghcr.io/${repo}:${short_sha}" >> $GITHUB_OUTPUT
+          echo "latest_tag=ghcr.io/${repo}:latest"          >> $GITHUB_OUTPUT
+
+      - name: Log in to GHCR
+        if: github.ref == 'refs/heads/master'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: |
+          docker build \
+            -t ${{ steps.img.outputs.sha_tag }} \
+            -t ${{ steps.img.outputs.short_sha_tag }} \
+            .
+
+      - name: Push image
+        if: github.ref == 'refs/heads/master'
+        run: |
+          docker tag ${{ steps.img.outputs.sha_tag }} ${{ steps.img.outputs.latest_tag }}
+          docker push ${{ steps.img.outputs.sha_tag }}
+          docker push ${{ steps.img.outputs.short_sha_tag }}
+          docker push ${{ steps.img.outputs.latest_tag }}

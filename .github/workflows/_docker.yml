@@ -63,16 +63,19 @@ jobs:
           severity: CRITICAL
           exit-code: '1'
           ignore-unfixed: true
+          hide-progress: true
 
       - name: Upload CRITICAL findings to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-critical.sarif
           category: trivy-critical
 
-      # HIGH — continue-on-error marks the step yellow (visible warning) rather than silently green.
+      # HIGH — always() ensures this runs even when the CRITICAL scan failed.
+      # continue-on-error marks the step yellow (visible warning) rather than silently green.
       - name: Scan — HIGH (non-blocking)
+        if: always()
         continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -82,10 +85,11 @@ jobs:
           severity: HIGH
           exit-code: '1'
           ignore-unfixed: true
+          hide-progress: true
 
       - name: Upload HIGH findings to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-high.sarif
           category: trivy-high

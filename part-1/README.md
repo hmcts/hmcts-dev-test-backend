@@ -61,6 +61,16 @@ http://localhost:${SERVER_PORT}/health
 
 Docker Compose will use this endpoint for the app health check.
 
+## metrics
+
+The app exposes a metrics endpoint at:
+
+```text
+http://localhost:${SERVER_PORT}/metrics
+```
+
+Docker Compose will also use this endpoint to get metrics about the application
+
 ## Notes
 
 - The `docker-compose.yaml` file in `part-1` is configured to build from `..` so the Gradle wrapper and project sources are available.

@@ -8,3 +8,40 @@ can run the service in IntelliJ (or your IDE of choice) or however you normally 
 
 There is an example endpoint provided to retrieve an example of a case. You are free to add/remove fields as you
 wish.
+
+## Running Locally with Docker Compose
+
+### 1. Environment Setup
+
+Set your database and application environment variables in your terminal:
+
+```bash
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_NAME=devtest
+export DB_USER_NAME=postgres
+export DB_PASSWORD=secure_password
+export APP_PORT=4000
+```
+
+### 2. Start the Application
+
+Open your terminal in the project root directory and run:
+
+docker compose up -d
+
+### 3. Verify Application Health and Endpoints
+
+#### Welcome message
+curl http://localhost:4000/
+
+#### Health check (includes PostgreSQL connection status)
+curl http://localhost:4000/health
+
+#### Sample case JSON endpoint
+curl http://localhost:4000/get-example-case
+
+### 4. Stopping containers cleanly
+
+#### Stop containers and wipe the persistent pgdata volume
+docker compose down -v

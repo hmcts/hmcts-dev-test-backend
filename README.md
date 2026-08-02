@@ -45,3 +45,25 @@ curl http://localhost:4000/get-example-case
 
 #### Stop containers and wipe the persistent pgdata volume
 docker compose down -v
+
+### 5. Infrastructure setup using real Azure environment
+
+For production deployments, Terraform state should be stored remotely in a centralized, secure location to enable team collaboration, state locking, and encryption at rest.
+
+#### Recommended Configuration:
+State can be stored in an Azure Blob Storage container using the `azurerm` backend block (see `providers.tf`):
+
+```hcl
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "myapp-tfstate-rg"
+    storage_account_name = "myapptfstatesa"
+    container_name       = "tfstate"
+    key                  = "dev.terraform.tfstate"
+  }
+}
+```
+
+- **Creation of Storage account in Azure:** State files are stored in an encrypted Azure Blob Storage container (myapptfstatesa/tfstate) with automatic lease locking to ensure safe, concurrent pipeline execution.
+- **Keyless OIDC Authentication:** Service Principal creation with federated credentials to secure Azure to GitHub zero trust integration.
+- **Automated PR-Driven Deployment:** Pull requests trigger terraform plan and post an interactive Markdown comment on the PR; merging to master automatically runs terraform apply against your Azure Container App, PostgreSQL, and Key Vault resources.

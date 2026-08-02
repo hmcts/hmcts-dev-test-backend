@@ -23,3 +23,13 @@ bin/main/application.yaml
 
 applicationinsights-agent-*.jar
 *.log
+
+### Local Terraform working directory (contains downloaded providers and modules)
+.terraform/
+
+### Terraform CLI state files & crash logs
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+crash.log
+crash.*.log

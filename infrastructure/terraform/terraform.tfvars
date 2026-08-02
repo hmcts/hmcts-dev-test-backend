@@ -1,0 +1,5 @@
+project_name      = "hmcts"
+environment       = "dev"
+location          = "northeurope"
+db_admin_username = "psqladmin"
+container_image   = "mcr.microsoft.com/azuredocs/aci-helloworld:latest"

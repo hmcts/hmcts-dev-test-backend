@@ -1,0 +1,31 @@
+# Copy to prod.tfvars (gitignored) and adjust:
+#   terraform plan -var-file=prod.tfvars
+#
+# No database password here - Terraform generates it and stores it in Key Vault.
+
+env      = "prod"
+location = "uksouth"
+
+# Always a sha- tag or digest, never a floating tag.
+container_image = "ghcr.io/hmcts/hmcts-dev-test-backend:sha-a1b2c3d"
+builtFrom       = "a1b2c3d"
+
+postgres_sku_name              = "GP_Standard_D2ds_v5"
+postgres_storage_mb            = 32768
+postgres_backup_retention_days = 14
+
+min_replicas = 2
+max_replicas = 10
+
+common_tags = {
+  application = "hmcts-dev-test"
+  managedBy   = "Terraform"
+  repository  = "hmcts/hmcts-dev-test-backend"
+  costCentre  = "REPLACE-ME"
+  owner       = "dts-devops@hmcts.net"
+}
+
+# For a private image, export these from pipeline secrets instead of setting
+# them here:
+#   export TF_VAR_registry_username="$GITHUB_ACTOR"
+#   export TF_VAR_registry_password="$GITHUB_TOKEN"

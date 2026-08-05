@@ -21,5 +21,23 @@ bin/main/application.yaml
 
 .DS_Store
 
+### Local credentials ###
+.env
+
+### Terraform ###
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
+
 applicationinsights-agent-*.jar
 *.log

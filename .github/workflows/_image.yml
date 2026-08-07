@@ -70,7 +70,7 @@ jobs:
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - name: Scan, CRITICAL blocks
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.target.outputs.ref }}
           format: table
@@ -83,7 +83,7 @@ jobs:
       - name: Scan, HIGH warns
         if: always()
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.target.outputs.ref }}
           format: table
@@ -93,7 +93,7 @@ jobs:
 
       - name: Findings to the Security tab
         if: always()
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.target.outputs.ref }}
           format: sarif

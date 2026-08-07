@@ -27,7 +27,7 @@ runs:
       shell: bash
       run: echo "value=$(cat '${{ inputs.working-directory }}/.terraform-version')" >> "$GITHUB_OUTPUT"
 
-    - uses: hashicorp/setup-terraform@v3
+    - uses: hashicorp/setup-terraform@v4
       with:
         terraform_version: ${{ steps.version.outputs.value }}
         terraform_wrapper: false

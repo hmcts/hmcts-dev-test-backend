@@ -1,0 +1,2 @@
+// Pins the root project name rather than deriving it from the directory.
+rootProject.name = 'hmcts-dev-test-backend'

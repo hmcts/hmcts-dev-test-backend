@@ -1,0 +1,49 @@
+name: Terraform checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  TERRAFORM_DIR: infrastructure/terraform
+
+jobs:
+  checks:
+    name: Terraform checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # No backend, so neither step below needs Azure credentials.
+      - uses: ./.github/actions/terraform
+
+      - name: Format
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform fmt -check -recursive -diff
+
+      - name: Validate
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform validate -no-color
+
+      # Reported to the Security tab rather than failing the build.
+      - name: Scan for misconfiguration
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-config.sarif
+          exit-code: "0"
+
+      - name: Upload results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-iac
+        continue-on-error: true

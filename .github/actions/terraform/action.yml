@@ -1,0 +1,54 @@
+name: Terraform
+description: Installs the pinned Terraform version and initialises the working directory.
+
+inputs:
+  working-directory:
+    description: Directory holding the configuration.
+    required: false
+    default: infrastructure/terraform
+  state-storage-account:
+    description: State storage account. Leave empty to initialise without a backend.
+    required: false
+    default: ""
+  state-resource-group:
+    description: Resource group holding the state storage account.
+    required: false
+    default: ""
+  state-key:
+    description: State blob key, for example case-tracker/prd.tfstate.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Read pinned version
+      id: version
+      shell: bash
+      run: echo "value=$(cat '${{ inputs.working-directory }}/.terraform-version')" >> "$GITHUB_OUTPUT"
+
+    - uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ steps.version.outputs.value }}
+        terraform_wrapper: false
+
+    - name: Init
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        STATE_RESOURCE_GROUP: ${{ inputs.state-resource-group }}
+        STATE_STORAGE_ACCOUNT: ${{ inputs.state-storage-account }}
+        STATE_KEY: ${{ inputs.state-key }}
+      run: |
+        set -euo pipefail
+        if [ -z "$STATE_STORAGE_ACCOUNT" ]; then
+          terraform init -backend=false -input=false
+        else
+          terraform init -input=false \
+            -backend-config="resource_group_name=$STATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$STATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=$STATE_KEY" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true"
+        fi

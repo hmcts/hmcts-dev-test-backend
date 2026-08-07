@@ -1,0 +1,137 @@
+name: Image build and scan
+
+# Tagging: sha-<short sha> on every build is the immutable identity and the
+# only tag deployments reference. Branch, semver and latest are conveniences.
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: Repository path of the image, without a tag.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+jobs:
+  image:
+    name: Image build and scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # The secrets context is not available in a step `if`.
+      ACR_NAME: ${{ secrets.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      # Only master and version tags publish.
+      PUBLISH: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.image-name }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      # Loaded locally so the scan runs against the image that is pushed.
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resolve scan target
+        id: target
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          ref="$(printf '%s\n' "$TAGS" | head -n1)"
+          echo "Scanning $ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Scan, CRITICAL blocks
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ steps.target.outputs.ref }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      # continue-on-error marks the step as a visible warning rather than
+      # leaving it green when HIGH findings exist.
+      - name: Scan, HIGH warns
+        if: always()
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ steps.target.outputs.ref }}
+          format: table
+          severity: HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Findings to the Security tab
+        if: always()
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ steps.target.outputs.ref }}
+          format: sarif
+          output: trivy-image.sarif
+          severity: MEDIUM,HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Upload results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+        continue-on-error: true
+
+      - name: Note when publishing is skipped
+        if: env.PUBLISH == 'true' && env.ACR_LOGIN_SERVER == ''
+        run: echo "::notice::No registry configured, skipping publish."
+
+      - name: Azure login
+        if: env.PUBLISH == 'true' && env.ACR_LOGIN_SERVER != ''
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Push
+        if: env.PUBLISH == 'true' && env.ACR_LOGIN_SERVER != ''
+        env:
+          REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          az acr login --name "$ACR_NAME"
+          printf '%s\n' "$TAGS" | while read -r tag; do
+            [ -z "$tag" ] && continue
+            docker tag "$tag" "${REGISTRY}/${tag}"
+            docker push "${REGISTRY}/${tag}"
+          done

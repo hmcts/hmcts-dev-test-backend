@@ -1,0 +1,54 @@
+name: hmcts-dev-test
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: hmcts-dev-test-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env}
+      POSTGRES_USER: ${DB_USER_NAME:?set DB_USER_NAME in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    ports:
+      - "${DB_HOST_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hmcts/dev-test-backend:local
+    container_name: hmcts-dev-test-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-4000}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER_NAME: ${DB_USER_NAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_OPTIONS: ${DB_OPTIONS:-}
+    ports:
+      - "${APP_HOST_PORT:-4000}:${SERVER_PORT:-4000}"
+    healthcheck:
+      # Readiness includes the db group, so healthy proves the datasource works.
+      test:
+        - CMD-SHELL
+        - curl -fsS "http://127.0.0.1:${SERVER_PORT:-4000}/health/readiness" | grep -q '"status":"UP"'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  pgdata:

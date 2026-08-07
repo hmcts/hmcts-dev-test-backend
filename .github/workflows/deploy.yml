@@ -1,0 +1,132 @@
+name: Deploy
+
+# Separate from CI so the credentials that can change production are not
+# attached to every run. Always deploys an immutable sha- tag.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Immutable image tag, for example sha-1a2b3c4"
+        required: true
+        type: string
+      environment:
+        description: "Target environment"
+        required: true
+        default: prd
+        type: choice
+        options: [dev, tst, stg, prd]
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+env:
+  TERRAFORM_DIR: infrastructure/terraform
+
+jobs:
+  resolve:
+    name: Resolve target
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.target.outputs.image-tag }}
+      environment: ${{ steps.target.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: target
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # A release tag deploys by SHA so the artefact stays immutable.
+            echo "image-tag=sha-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+            echo "environment=prd" >> "$GITHUB_OUTPUT"
+          else
+            echo "image-tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    needs: resolve
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/terraform
+        with:
+          state-resource-group: ${{ secrets.TF_STATE_RESOURCE_GROUP }}
+          state-storage-account: ${{ secrets.TF_STATE_STORAGE_ACCOUNT }}
+          state-key: cms/${{ needs.resolve.outputs.environment }}.tfstate
+
+      # Written to the job summary for review. Not uploaded as an artefact: a
+      # saved plan holds every planned attribute in the clear.
+      - name: Plan
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          set -euo pipefail
+          terraform plan -input=false -lock-timeout=5m -no-color \
+            -var-file="envs/${{ needs.resolve.outputs.environment }}.tfvars" \
+            -var="image_tag=${{ needs.resolve.outputs.image-tag }}" | tee plan.txt
+          {
+            echo "### Plan for ${{ needs.resolve.outputs.environment }}"
+            echo '```hcl'
+            tail -c 60000 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    name: Apply
+    runs-on: ubuntu-latest
+    needs: [resolve, plan]
+    timeout-minutes: 60
+    # Required reviewers on this environment are the approval gate.
+    environment: ${{ needs.resolve.outputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/terraform
+        with:
+          state-resource-group: ${{ secrets.TF_STATE_RESOURCE_GROUP }}
+          state-storage-account: ${{ secrets.TF_STATE_STORAGE_ACCOUNT }}
+          state-key: cms/${{ needs.resolve.outputs.environment }}.tfstate
+
+      - name: Apply
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          terraform apply -input=false -lock-timeout=5m -auto-approve \
+            -var-file="envs/${{ needs.resolve.outputs.environment }}.tfvars" \
+            -var="image_tag=${{ needs.resolve.outputs.image-tag }}"
+
+      - name: Smoke test
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          set -euo pipefail
+          url="$(terraform output -json container_app | jq -r .health_url)"
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "$url" >/dev/null; then
+              echo "Service is healthy."
+              exit 0
+            fi
+            echo "Attempt $i not ready, retrying."
+            sleep 10
+          done
+          echo "::error::Service did not become healthy after deployment."
+          exit 1

@@ -1,21 +1,23 @@
 server:
-  port: 4000
+  port: ${SERVER_PORT:4000}
   shutdown: "graceful"
 
-# If you want to use a database then uncomment the `group:, readiness: and include: "db"`
-# lines in the health probes and uncomment the datasource section
 management:
   endpoint:
     health:
-      show-details: "always"
-      # group:
-      #  readiness:
-      #   include: "db"
+      # Set to "never" where ingress is public.
+      show-details: ${HEALTH_SHOW_DETAILS:always}
+      probes:
+        enabled: true
+      group:
+        readiness:
+          # readinessState must stay: declaring the group replaces the default.
+          include: "readinessState,db"
   endpoints:
     web:
       base-path: /
       exposure:
-        include: info # should we have more?
+        include: info,health
 
 springdoc:
   packagesToScan: uk.gov.hmcts.reform.dev.controllers
@@ -26,24 +28,20 @@ spring:
     import: "optional:configtree:/mnt/secrets/test/"
   application:
     name: Dev Test
-#  datasource:
-#    driver-class-name: org.postgresql.Driver
-#    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}${DB_OPTIONS:}
-#    username: ${DB_USER_NAME}
-#    password: ${DB_PASSWORD}
-#    properties:
-#      charSet: UTF-8
-#    hikari:
-#      minimumIdle: 2
-#      maximumPoolSize: 10
-#      idleTimeout: 10000
-#      poolName: {to-be-defined}HikariCP
-#      maxLifetime: 7200000
-#      connectionTimeout: 30000
-#  jpa:
-#    properties:
-#      hibernate:
-#        jdbc:
-#          lob:
-#            # silence the 'wall-of-text' - unnecessary exception throw about blob types
-#            non_contextual_creation: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}${DB_OPTIONS:}
+    username: ${DB_USER_NAME}
+    password: ${DB_PASSWORD}
+    properties:
+      charSet: UTF-8
+    hikari:
+      minimumIdle: 2
+      maximumPoolSize: 10
+      idleTimeout: 10000
+      poolName: DevTestHikariCP
+      maxLifetime: 7200000
+      connectionTimeout: 30000
+# spring.jpa is omitted: only spring-boot-starter-jdbc is on the classpath.

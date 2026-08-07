@@ -23,3 +23,29 @@ bin/main/application.yaml
 
 applicationinsights-agent-*.jar
 *.log
+
+### Test brief, not part of the solution ###
+Technical Test.docx
+
+### Local environment ###
+# Holds local database credentials. Never commit it.
+.env
+.env.local
+
+### Terraform ###
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+# Per-environment values, no secrets. The pipeline selects one with -var-file.
+!infrastructure/terraform/envs/*.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# .terraform.lock.hcl is deliberately NOT ignored: the provider lock file is
+# committed so CI and every engineer resolve identical provider versions.

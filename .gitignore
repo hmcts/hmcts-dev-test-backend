@@ -1,25 +1,19 @@
-.gradle
-/build/
-!gradle/wrapper/gradle-wrapper.jar
-*.class
-bin/main/application.yaml
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
+# Local database
+*.db
 
-### IntelliJ IDEA ###
-.idea
-/out
-*.iws
-*.iml
-*.ipr
+# Environment
+.env
 
+# Editors / OS
+.idea/
+.vscode/
 .DS_Store
-
-applicationinsights-agent-*.jar
-*.log
